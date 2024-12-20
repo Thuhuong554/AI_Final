@@ -16,6 +16,15 @@ from model import KeyPointClassifier
 from model import PointHistoryClassifier
 from model import KeyPointClassifierV1
 
+# Define colors for modern aesthetics
+COLORS = {
+    "background": (0, 0, 0),
+    "line_primary": (255, 255, 255),
+    "line_secondary": (50, 200, 255),
+    "circle": (255, 255, 255),
+    "text": (0, 255, 0),
+    "highlight": (152, 251, 152),
+}
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -98,6 +107,8 @@ def main():
 
     #  ########################################################################
     mode = 0
+    #  ############################################################
+    recognized_text = []
 
     while True:
         fps = cvFpsCalc.get()
@@ -146,6 +157,7 @@ def main():
                     point_history.append(landmark_list[8])
                 else:
                     point_history.append([0, 0])
+                    recognized_text = update_recognized_text(recognized_text, hand_sign_id, keypoint_classifier_labels)
 
                 # Finger gesture classification
                 finger_gesture_id = 0
@@ -169,6 +181,9 @@ def main():
                     keypoint_classifier_labels[hand_sign_id],
                     point_history_classifier_labels[most_common_fg_id[0][0]],
                 )
+                # Hiển thị kết quả
+                debug_image = draw_recognized_text(debug_image, recognized_text)
+
         else:
             point_history.append([0, 0])
 
@@ -294,224 +309,102 @@ def logging_csv(number, mode, landmark_list, point_history_list):
             writer.writerow([number, *point_history_list])
     return
 
+import cv2 as cv
 
 def draw_landmarks(image, landmark_point):
-    if len(landmark_point) > 0:
-        # Thumb
-        cv.line(image, tuple(landmark_point[2]), tuple(landmark_point[3]),
-                (0, 0, 0), 6)
-        cv.line(image, tuple(landmark_point[2]), tuple(landmark_point[3]),
-                (255, 255, 255), 2)
-        cv.line(image, tuple(landmark_point[3]), tuple(landmark_point[4]),
-                (0, 0, 0), 6)
-        cv.line(image, tuple(landmark_point[3]), tuple(landmark_point[4]),
-                (255, 255, 255), 2)
+    def draw_line(image, point1, point2, color, thickness):
+        """Vẽ một đường với màu sắc tùy chỉnh."""
+        cv.line(image, tuple(point1), tuple(point2), color, thickness)
 
-        # Index finger
-        cv.line(image, tuple(landmark_point[5]), tuple(landmark_point[6]),
-                (0, 0, 0), 6)
-        cv.line(image, tuple(landmark_point[5]), tuple(landmark_point[6]),
-                (255, 255, 255), 2)
-        cv.line(image, tuple(landmark_point[6]), tuple(landmark_point[7]),
-                (0, 0, 0), 6)
-        cv.line(image, tuple(landmark_point[6]), tuple(landmark_point[7]),
-                (255, 255, 255), 2)
-        cv.line(image, tuple(landmark_point[7]), tuple(landmark_point[8]),
-                (0, 0, 0), 6)
-        cv.line(image, tuple(landmark_point[7]), tuple(landmark_point[8]),
-                (255, 255, 255), 2)
+    def draw_circle(image, point, radius, color):
+        """Vẽ một vòng tròn với màu sắc tùy chỉnh."""
+        cv.circle(image, tuple(point), radius, color, -1)
+        cv.circle(image, tuple(point), radius, (0, 0, 0), 1)  # Viền đen để nổi bật
 
-        # Middle finger
-        cv.line(image, tuple(landmark_point[9]), tuple(landmark_point[10]),
-                (0, 0, 0), 6)
-        cv.line(image, tuple(landmark_point[9]), tuple(landmark_point[10]),
-                (255, 255, 255), 2)
-        cv.line(image, tuple(landmark_point[10]), tuple(landmark_point[11]),
-                (0, 0, 0), 6)
-        cv.line(image, tuple(landmark_point[10]), tuple(landmark_point[11]),
-                (255, 255, 255), 2)
-        cv.line(image, tuple(landmark_point[11]), tuple(landmark_point[12]),
-                (0, 0, 0), 6)
-        cv.line(image, tuple(landmark_point[11]), tuple(landmark_point[12]),
-                (255, 255, 255), 2)
+    # Màu sắc chuẩn Mediapipe
+    mp_colors = {
+        "thumb": (0, 138, 255),       # Màu xanh dương sáng
+        "index_finger": (0, 217, 255), # Màu xanh lục
+        "middle_finger": (0, 255, 255), # Màu vàng
+        "ring_finger": (255, 191, 0),   # Màu cam
+        "little_finger": (255, 0, 0),   # Màu đỏ
+        "palm": (128, 128, 128),        # Màu xám
+        "landmark": (255, 255, 255)     # Màu trắng cho điểm mốc
+    }
 
-        # Ring finger
-        cv.line(image, tuple(landmark_point[13]), tuple(landmark_point[14]),
-                (0, 0, 0), 6)
-        cv.line(image, tuple(landmark_point[13]), tuple(landmark_point[14]),
-                (255, 255, 255), 2)
-        cv.line(image, tuple(landmark_point[14]), tuple(landmark_point[15]),
-                (0, 0, 0), 6)
-        cv.line(image, tuple(landmark_point[14]), tuple(landmark_point[15]),
-                (255, 255, 255), 2)
-        cv.line(image, tuple(landmark_point[15]), tuple(landmark_point[16]),
-                (0, 0, 0), 6)
-        cv.line(image, tuple(landmark_point[15]), tuple(landmark_point[16]),
-                (255, 255, 255), 2)
+    # Định nghĩa các ngón tay và vẽ
+    fingers = [
+        (2, 3, 4),       # Thumb
+        (5, 6, 7, 8),    # Index finger
+        (9, 10, 11, 12), # Middle finger
+        (13, 14, 15, 16),# Ring finger
+        (17, 18, 19, 20) # Little finger
+    ]
 
-        # Little finger
-        cv.line(image, tuple(landmark_point[17]), tuple(landmark_point[18]),
-                (0, 0, 0), 6)
-        cv.line(image, tuple(landmark_point[17]), tuple(landmark_point[18]),
-                (255, 255, 255), 2)
-        cv.line(image, tuple(landmark_point[18]), tuple(landmark_point[19]),
-                (0, 0, 0), 6)
-        cv.line(image, tuple(landmark_point[18]), tuple(landmark_point[19]),
-                (255, 255, 255), 2)
-        cv.line(image, tuple(landmark_point[19]), tuple(landmark_point[20]),
-                (0, 0, 0), 6)
-        cv.line(image, tuple(landmark_point[19]), tuple(landmark_point[20]),
-                (255, 255, 255), 2)
+    finger_names = ["thumb", "index_finger", "middle_finger", "ring_finger", "little_finger"]
 
-        # Palm
-        cv.line(image, tuple(landmark_point[0]), tuple(landmark_point[1]),
-                (0, 0, 0), 6)
-        cv.line(image, tuple(landmark_point[0]), tuple(landmark_point[1]),
-                (255, 255, 255), 2)
-        cv.line(image, tuple(landmark_point[1]), tuple(landmark_point[2]),
-                (0, 0, 0), 6)
-        cv.line(image, tuple(landmark_point[1]), tuple(landmark_point[2]),
-                (255, 255, 255), 2)
-        cv.line(image, tuple(landmark_point[2]), tuple(landmark_point[5]),
-                (0, 0, 0), 6)
-        cv.line(image, tuple(landmark_point[2]), tuple(landmark_point[5]),
-                (255, 255, 255), 2)
-        cv.line(image, tuple(landmark_point[5]), tuple(landmark_point[9]),
-                (0, 0, 0), 6)
-        cv.line(image, tuple(landmark_point[5]), tuple(landmark_point[9]),
-                (255, 255, 255), 2)
-        cv.line(image, tuple(landmark_point[9]), tuple(landmark_point[13]),
-                (0, 0, 0), 6)
-        cv.line(image, tuple(landmark_point[9]), tuple(landmark_point[13]),
-                (255, 255, 255), 2)
-        cv.line(image, tuple(landmark_point[13]), tuple(landmark_point[17]),
-                (0, 0, 0), 6)
-        cv.line(image, tuple(landmark_point[13]), tuple(landmark_point[17]),
-                (255, 255, 255), 2)
-        cv.line(image, tuple(landmark_point[17]), tuple(landmark_point[0]),
-                (0, 0, 0), 6)
-        cv.line(image, tuple(landmark_point[17]), tuple(landmark_point[0]),
-                (255, 255, 255), 2)
+    for i, finger in enumerate(fingers):
+        color = mp_colors[finger_names[i]]  # Lấy màu chuẩn từ Mediapipe
+        for j in range(len(finger) - 1):
+            draw_line(image, landmark_point[finger[j]], landmark_point[finger[j + 1]], color, 4)
 
-    # Key Points
+    # Vẽ lòng bàn tay
+    palm_connections = [
+        (0, 1), (1, 2), (2, 5), (5, 9), (9, 13), (13, 17), (17, 0)
+    ]
+    for connection in palm_connections:
+        draw_line(image, landmark_point[connection[0]], landmark_point[connection[1]], mp_colors["palm"], 4)
+
+    # Vẽ các điểm mốc
     for index, landmark in enumerate(landmark_point):
-        if index == 0:  # 手首1
-            cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
-                      -1)
-            cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 1:  # 手首2
-            cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
-                      -1)
-            cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 2:  # 親指：付け根
-            cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
-                      -1)
-            cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 3:  # 親指：第1関節
-            cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
-                      -1)
-            cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 4:  # 親指：指先
-            cv.circle(image, (landmark[0], landmark[1]), 8, (255, 255, 255),
-                      -1)
-            cv.circle(image, (landmark[0], landmark[1]), 8, (0, 0, 0), 1)
-        if index == 5:  # 人差指：付け根
-            cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
-                      -1)
-            cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 6:  # 人差指：第2関節
-            cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
-                      -1)
-            cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 7:  # 人差指：第1関節
-            cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
-                      -1)
-            cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 8:  # 人差指：指先
-            cv.circle(image, (landmark[0], landmark[1]), 8, (255, 255, 255),
-                      -1)
-            cv.circle(image, (landmark[0], landmark[1]), 8, (0, 0, 0), 1)
-        if index == 9:  # 中指：付け根
-            cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
-                      -1)
-            cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 10:  # 中指：第2関節
-            cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
-                      -1)
-            cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 11:  # 中指：第1関節
-            cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
-                      -1)
-            cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 12:  # 中指：指先
-            cv.circle(image, (landmark[0], landmark[1]), 8, (255, 255, 255),
-                      -1)
-            cv.circle(image, (landmark[0], landmark[1]), 8, (0, 0, 0), 1)
-        if index == 13:  # 薬指：付け根
-            cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
-                      -1)
-            cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 14:  # 薬指：第2関節
-            cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
-                      -1)
-            cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 15:  # 薬指：第1関節
-            cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
-                      -1)
-            cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 16:  # 薬指：指先
-            cv.circle(image, (landmark[0], landmark[1]), 8, (255, 255, 255),
-                      -1)
-            cv.circle(image, (landmark[0], landmark[1]), 8, (0, 0, 0), 1)
-        if index == 17:  # 小指：付け根
-            cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
-                      -1)
-            cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 18:  # 小指：第2関節
-            cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
-                      -1)
-            cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 19:  # 小指：第1関節
-            cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
-                      -1)
-            cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 20:  # 小指：指先
-            cv.circle(image, (landmark[0], landmark[1]), 8, (255, 255, 255),
-                      -1)
-            cv.circle(image, (landmark[0], landmark[1]), 8, (0, 0, 0), 1)
+        radius = 8 if index % 4 == 0 else 5  # Điểm đầu ngón to hơn
+        draw_circle(image, landmark, radius, mp_colors["landmark"])
 
     return image
-
 
 def draw_bounding_rect(use_brect, image, brect):
     if use_brect:
-        # Outer rectangle
+        # Outer rectangle with a thicker border and a modern color (e.g., light blue)
         cv.rectangle(image, (brect[0], brect[1]), (brect[2], brect[3]),
-                     (0, 0, 0), 1)
+                     (255, 165, 0), 3)  # Orange with thicker border for visibility
 
     return image
 
+def draw_info_text(image, brect, handedness, hand_sign_text, finger_gesture_text):
+    # Adding a translucent background for text
+    overlay = image.copy()
+    cv.rectangle(overlay, (brect[0], brect[1] - 22), (brect[2], brect[1]),
+                 (0, 0, 0), -1)  # Black background
+    alpha = 0.5  # Transparency level
+    cv.addWeighted(overlay, alpha, image, 1 - alpha, 0, image)
 
-def draw_info_text(image, brect, handedness, hand_sign_text,
-                   finger_gesture_text):
-    cv.rectangle(image, (brect[0], brect[1]), (brect[2], brect[1] - 22),
-                 (0, 0, 0), -1)
+    # Preparing the text for handedness and gestures
+    info_text = handedness.classification[0].label
+    if hand_sign_text:
+        info_text += f': {hand_sign_text}'
 
-    info_text = handedness.classification[0].label[0:]
-    if hand_sign_text != "":
-        info_text = info_text + ':' + hand_sign_text
+    # Set font properties with better readability
+    font = cv.FONT_HERSHEY_COMPLEX
+    font_scale = 0.8
+    font_thickness = 2
+    text_color = (255, 255, 255)  # White text
+
+    # Adding a drop shadow for better text visibility
+    shadow_offset = 2
+    cv.putText(image, info_text, (brect[0] + 5 + shadow_offset, brect[1] - 4 + shadow_offset),
+               font, font_scale, (0, 0, 0), font_thickness + 2, cv.LINE_AA)  # Shadow in black
+
+    # Main text
     cv.putText(image, info_text, (brect[0] + 5, brect[1] - 4),
-               cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv.LINE_AA)
+               font, font_scale, text_color, font_thickness, cv.LINE_AA)
 
-    # if finger_gesture_text != "":
-    #     cv.putText(image, "Finger Gesture:" + finger_gesture_text, (10, 60),
-    #                cv.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 4, cv.LINE_AA)
-    #     cv.putText(image, "Finger Gesture:" + finger_gesture_text, (10, 60),
-    #                cv.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2,
-    #                cv.LINE_AA)
+    # Uncomment and add finger gesture text if needed
+    # if finger_gesture_text:
+    #     finger_gesture_label = f"Finger Gesture: {finger_gesture_text}"
+    #     cv.putText(image, finger_gesture_label, (10, 60),
+    #                font, 1.0, (255, 255, 255), 2, cv.LINE_AA)
 
     return image
-
 
 def draw_point_history(image, point_history):
     for index, point in enumerate(point_history):
@@ -521,24 +414,69 @@ def draw_point_history(image, point_history):
 
     return image
 
-
 def draw_info(image, fps, mode, number):
-    cv.putText(image, "FPS:" + str(fps), (10, 30), cv.FONT_HERSHEY_SIMPLEX,
-               1.0, (0, 0, 0), 4, cv.LINE_AA)
-    cv.putText(image, "FPS:" + str(fps), (10, 30), cv.FONT_HERSHEY_SIMPLEX,
-               1.0, (255, 255, 255), 2, cv.LINE_AA)
+    # Prepare background for FPS to improve readability
+    overlay = image.copy()
+    cv.rectangle(overlay, (5, 5), (150, 50), (0, 0, 0), -1)  # Black background for FPS text
+    alpha = 0.6  # Transparency
+    cv.addWeighted(overlay, alpha, image, 1 - alpha, 0, image)
 
+    # FPS text with drop shadow
+    cv.putText(image, f"FPS: {fps}", (10 + 2, 30 + 2), cv.FONT_HERSHEY_SIMPLEX, 
+               1.0, (0, 0, 0), 4, cv.LINE_AA)  # Shadow in black
+    cv.putText(image, f"FPS: {fps}", (10, 30), cv.FONT_HERSHEY_SIMPLEX, 
+               1.0, (255, 255, 255), 2, cv.LINE_AA)  # Main text in white
+
+    # Mode info with clean background and shadow effect
     mode_string = ['Logging Key Point', 'Logging Point History']
     if 1 <= mode <= 2:
-        cv.putText(image, "MODE:" + mode_string[mode - 1], (10, 90),
-                   cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1,
-                   cv.LINE_AA)
+        cv.putText(image, f"MODE: {mode_string[mode - 1]}", (10 + 2, 90 + 2),
+                   cv.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2, cv.LINE_AA)  # Shadow
+        cv.putText(image, f"MODE: {mode_string[mode - 1]}", (10, 90),
+                   cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv.LINE_AA)
+
+        # Display the number if it's within the valid range
         if 0 <= number <= 9:
-            cv.putText(image, "NUM:" + str(number), (10, 110),
-                       cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1,
-                       cv.LINE_AA)
+            cv.putText(image, f"NUM: {number}", (10 + 2, 110 + 2),
+                       cv.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2, cv.LINE_AA)  # Shadow
+            cv.putText(image, f"NUM: {number}", (10, 110),
+                       cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv.LINE_AA)
+
     return image
 
+def draw_recognized_text(image, text_list):
+    # Cập nhật văn bản bằng cách lấy từ mới nhất
+    text = " ".join(text_list[-5:])  # Display the last 10 words
+     
+    # Tạo một bản sao của ảnh để làm nền cho văn bản
+    overlay = image.copy()
+    
+    # Vẽ một hình chữ nhật nền cho văn bản
+    cv.rectangle(overlay, (5, 40), (image.shape[1] - 5, 90), (0, 0, 0), -1)
+    
+    # Cài đặt độ mờ cho nền
+    alpha = 0.7
+    cv.addWeighted(overlay, alpha, image, 1 - alpha, 0, image)
+    
+    # Thêm hiệu ứng bóng đổ cho văn bản
+    cv.putText(image, f'Recognized: {text}', (10 + 2, 70 + 2),
+               cv.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 3, cv.LINE_AA)  # Shadow
+    # Vẽ văn bản chính với màu xanh lá cây
+    cv.putText(image, f'Recognized: {text}', (10, 70),
+               cv.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv.LINE_AA)  # Main text in green
+    
+    return image
+
+def update_recognized_text(recognized_text, hand_sign_id, keypoint_classifier_labels):
+    # Lấy từ mới nhận diện từ hand_sign_id
+    new_text = keypoint_classifier_labels[hand_sign_id]
+    
+    # Kiểm tra xem từ mới có khác từ cuối cùng không
+    if len(recognized_text) == 0 or recognized_text[-1] != new_text:
+        # Nếu khác, thêm từ mới vào danh sách
+        recognized_text.append(new_text)
+    
+    return recognized_text
 
 if __name__ == '__main__':
     main()
